@@ -43,12 +43,16 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.get('/api/users', (req, res) => {
-  User.find({}, (err, users) => {
-    if (err) return console.error(err);
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({});
     res.json(users);
-  });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
+  }
 });
+
 
 
 app.post('/api/users/:_id/exercises', async (req, res) => {
@@ -78,11 +82,49 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
   }
 });
 
-app.get('/api/users/:_id/logs', (req, res) => {
-  Exercise.find({ userId: req.params._id }, (err, exercises) => {
-    if (err) return console.error(err);
-    res.json(exercises);
-  });
+app.get('/api/users/:_id/logs', async (req, res) => {
+  try {
+    const user = await User.findById(req.params._id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    const query = {
+      userId: user._id,
+    };
+
+    if (req.query.from || req.query.to) {
+      query.date = {};
+      if (req.query.from) {
+        const fromDate = new Date(req.query.from);
+        query.date.$gte = fromDate;
+      }
+      if (req.query.to) {
+        const toDate = new Date(req.query.to);
+        query.date.$lte = toDate;
+      }
+    }
+
+    let exercises = await Exercise.find(query).limit(parseInt(req.query.limit));
+
+    exercises = exercises.map((ex) => ({
+      description: ex.description,
+      duration: ex.duration,
+      date: ex.date.toDateString(),
+    }));
+
+    const response = {
+      _id: user._id,
+      username: user.username,
+      count: exercises.length,
+      log: exercises,
+    };
+
+    res.json(response);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
+  }
 });
 
 
